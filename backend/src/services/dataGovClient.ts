@@ -1,4 +1,4 @@
-import type { RawHealthRecord } from "@sg-health/types";
+import type { RawHealthRecord, RecordsFilters } from "@sg-health/types";
 import { env } from "../config/env.js";
 
 interface DatastoreSearchResponse {
@@ -13,8 +13,9 @@ interface DatastoreSearchResponse {
 interface FetchPageParams {
   limit: number;
   offset: number;
-  // exact-match only, e.g. { clinical_status: "ICU" } — no ranges/comparisons.
-  filters?: Record<string, string>;
+  // exact-match only; an array value OR-matches within that field (verified
+  // against the real API — see PLAN.md chat history), no ranges/comparisons.
+  filters?: RecordsFilters;
 }
 
 const MAX_ATTEMPTS = 3;
@@ -58,7 +59,7 @@ const PAGE_SIZE = 100;
 /** Fetches every record matching `filters` (or the whole dataset if omitted),
  * paging until `total` is reached. */
 export async function fetchAllRecords(
-  filters?: Record<string, string>,
+  filters?: RecordsFilters,
 ): Promise<RawHealthRecord[]> {
   const records: RawHealthRecord[] = [];
   let offset = 0;

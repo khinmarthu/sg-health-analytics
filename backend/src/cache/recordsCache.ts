@@ -1,4 +1,4 @@
-import type { RawHealthRecord } from "@sg-health/types";
+import type { RawHealthRecord, RecordsFilters } from "@sg-health/types";
 import NodeCache from "node-cache";
 import { env } from "../config/env.js";
 import { fetchPage } from "../services/dataGovClient.js";
@@ -8,7 +8,7 @@ const cache = new NodeCache({ stdTTL: env.cacheTtlSeconds });
 interface RecordsParams {
   limit: number;
   offset: number;
-  filters?: Record<string, string>;
+  filters?: RecordsFilters;
 }
 
 /** Cache key: the exact query params, so identical requests hit cache

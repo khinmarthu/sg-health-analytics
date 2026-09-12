@@ -64,6 +64,15 @@ export interface FiltersResponseData {
   epi_week: string[];
 }
 
+/** Filters accepted by GET /api/records (as one JSON `filters` query param,
+ * same shape data.gov.sg itself accepts — exact-match per field, and a
+ * single value or an array (OR-match) per field). */
+export interface RecordsFilters {
+  clinical_status?: string | string[];
+  age_groups?: string | string[];
+  epi_week?: string | string[];
+}
+
 export type ApiResponse<T> =
   | { success: true; data: T }
   | { success: false; error: { message: string } };

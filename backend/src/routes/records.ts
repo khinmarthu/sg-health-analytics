@@ -1,4 +1,4 @@
-import type { ApiResponse, RecordsResponseData } from "@sg-health/types";
+import type { ApiResponse, RecordsFilters, RecordsResponseData } from "@sg-health/types";
 import { Router } from "express";
 import { z } from "zod";
 import { getCachedRecords } from "../cache/recordsCache.js";
@@ -8,6 +8,30 @@ import { calculateInsights } from "../insights/calculateInsights.js";
 
 export const recordsRouter = Router();
 
+// Each field accepts one value or an array (OR-match) — mirrors exactly
+// what data.gov.sg's own `filters` param supports (verified earlier).
+const clinicalStatusEnum = z.enum(["ICU", "Hospitalised"]);
+const ageGroupEnum = z.enum([
+  "0 - 11 years old",
+  "12 - 59 years old",
+  "60 years old and above",
+]);
+const epiWeekPattern = z.string().regex(/^\d{4}-\d{2}$/, "must look like YYYY-WW");
+
+function oneOrMany<T extends z.ZodTypeAny>(schema: T) {
+  return z.union([schema, z.array(schema)]);
+}
+
+// .strict() rejects unknown keys — a typo'd field name fails loudly
+// instead of silently being ignored.
+const filtersSchema = z
+  .object({
+    clinical_status: oneOrMany(clinicalStatusEnum).optional(),
+    age_groups: oneOrMany(ageGroupEnum).optional(),
+    epi_week: oneOrMany(epiWeekPattern).optional(),
+  })
+  .strict();
+
 // Validates OUR API's own incoming query params (not the gov data response —
 // that's a separate boundary). A client could send anything, so this
 // rejects bad/out-of-range input with a clear 400 instead of it silently
@@ -15,23 +39,33 @@ export const recordsRouter = Router();
 const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(100),
   offset: z.coerce.number().int().min(0).default(0),
-  clinical_status: z.enum(["ICU", "Hospitalised"]).optional(),
-  age_groups: z
-    .enum(["0 - 11 years old", "12 - 59 years old", "60 years old and above"])
-    .optional(),
+  filters: z.string().optional(), // JSON string, parsed+validated separately below
 });
 
 recordsRouter.get("/api/records", async (req, res) => {
-  const parsed = querySchema.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ success: false, error: { message: parsed.error.message } });
+  const parsedQuery = querySchema.safeParse(req.query);
+  if (!parsedQuery.success) {
+    res.status(400).json({ success: false, error: { message: parsedQuery.error.message } });
     return;
   }
+  const { limit, offset, filters: filtersRaw } = parsedQuery.data;
 
-  const { limit, offset, clinical_status, age_groups } = parsed.data;
-  const filters: Record<string, string> = {};
-  if (clinical_status) filters.clinical_status = clinical_status;
-  if (age_groups) filters.age_groups = age_groups;
+  let filters: RecordsFilters = {};
+  if (filtersRaw) {
+    let json: unknown;
+    try {
+      json = JSON.parse(filtersRaw);
+    } catch {
+      res.status(400).json({ success: false, error: { message: "filters must be valid JSON" } });
+      return;
+    }
+    const parsedFilters = filtersSchema.safeParse(json);
+    if (!parsedFilters.success) {
+      res.status(400).json({ success: false, error: { message: parsedFilters.error.message } });
+      return;
+    }
+    filters = parsedFilters.data;
+  }
 
   const hasFilters = Object.keys(filters).length > 0;
 
