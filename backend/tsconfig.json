@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext", // this code runs in Node directly, not through a bundler
+    "moduleResolution": "NodeNext", // must match "module" above
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["node"] // Node globals (process, etc.)
+  },
+  "include": ["src"]
+}

@@ -4,11 +4,16 @@
 
 - **Title**: Average daily hospitalised / ICU cases by Epi-week
 - **Resource ID**: `d_0d1da54a73733d33e40f662f757af537`
-- **Coverage**: Epi-week data, Jan 2023 – Jan 2024 (last updated 2024-06-06)
-- **Fields**: `epi_year`, `epi_week`, `clinical_status` (`ICU` | `Hospitalised`), `age_group` (3 buckets: 0–11, 12–59, 60+), `count`
+- **Coverage**: 52 epi-weeks, 2023 (312 records = 52 weeks × 3 age groups × 2 clinical statuses)
+- **Fields** (raw API — all values arrive as strings, incl. numeric ones):
+  - `epi_year`: `"2023"`
+  - `epi_week`: `"2023-09"` (year-week, zero-padded, lexically sortable within a year)
+  - `clinical_status`: `"ICU"` | `"Hospitalised"`
+  - `age_groups`: `"0 - 11 years old"` | `"12 - 59 years old"` | `"60 years old and above"`
+  - `count`: numeric string, e.g. `"1.7"` (average daily count, decimal)
 - **API**: `GET https://data.gov.sg/api/action/datastore_search?resource_id=d_0d1da54a73733d33e40f662f757af537&limit=&offset=&filters=`
-  - Public, **no API key required**. `limit`/`offset` pagination, response has `result.records`, `result.total`, `result._links.next`.
-  - Known limitation to document: ~1 year of data, source is MOH via data.gov.sg, no realtime updates.
+  - Public, **no API key required** (optional key only raises rate limits — skipped, see Decisions Log #6). `limit`/`offset` pagination, response has `result.records`, `result.total`, `result._links.next`.
+  - Known limitation to document: 1 year of data (2023 only), source is MOH via data.gov.sg, no realtime updates.
 
 ## Decisions Log
 
@@ -22,26 +27,26 @@
 | 6 | Secrets | data.gov.sg API key exists but is optional (only raises rate limits; not required for correctness). Skipped entirely — not worth the complexity for a cached, ~384-row dataset. `.env` holds non-secret config only (`RESOURCE_ID`, `DATA_GOV_BASE_URL`, `PORT`, `CACHE_TTL_SECONDS`). `.env` is gitignored, `.env.example` is committed. If a keyed source is ever added later, key goes in AWS Secrets Manager / SSM Parameter Store (referenced, not hardcoded, in CDK) — documented in ADR. |
 | 7 | Local dev without Docker | `pnpm dev` runs FE (Vite) + BE (tsx/ts-node-dev) directly; Dockerfile exists for Fargate parity/testing but isn't required to run locally |
 | 8 | Cache | `node-cache` library (in-process, TTL) | proven, small, avoids hand-rolling/testing our own TTL-map expiry logic; fine for single-process local run |
+| 9 | Shared types | Emergent, not contract-first | write types inline where first needed (backend); promote a type into `packages/types` only once a second consumer (frontend, or a test) needs the identical shape — avoids speculative/wrong-guessed shared shapes |
 
 ---
 
 ## Step 0 — Repo init
-- [ ] `git init`, initial commit baseline
-- [ ] Root `pnpm-workspace.yaml` (`frontend`, `backend`, `infra`, `packages/*`)
-- [ ] Root `.gitignore` (node_modules, dist, .env, cdk.out, coverage)
-- [ ] Root `.editorconfig` + shared `tsconfig.base.json`
-- [ ] Root `package.json` with workspace-wide scripts (`dev`, `build`, `test`, `lint`)
+- [x] `git init`, initial commit baseline
+- [x] Root `pnpm-workspace.yaml` (`frontend`, `backend`, `infra`, `packages/*`)
+- [x] Root `.gitignore` (node_modules, dist, .env, cdk.out, coverage)
+- [x] Root `.editorconfig` + shared `tsconfig.base.json`
+- [x] Root `package.json` with workspace-wide scripts (`dev`, `build`, `test`, `lint`)
 
-## Step 1 — Shared types package
-- [ ] `packages/types`: `HealthRecord`, `ClinicalStatus`, `AgeGroup`, `InsightsSummary`, API response envelopes
-- [ ] Exported via `packages/types/src/index.ts`, consumed by both FE and BE via workspace `link:` dependency
+## Step 1 — Shared types (emergent, deferred)
+- [x] Decision made: no upfront contract package. Types are written inline where first needed (backend, Step 2/3) and only promoted into `packages/types/src/index.ts` (type-only, no build — see Decisions Log #9) once frontend or a test needs the identical shape. Revisit this checklist item at that point.
 
 ## Step 2 — Backend scaffold
-- [ ] `backend/`: TS Node project, `tsconfig.json`, `tsx watch` for dev
-- [ ] Folders: `src/routes`, `src/services` (data.gov.sg client), `src/cache`, `src/insights`, `src/config`
-- [ ] `.env.example` (`DATASET_ID`, `API_BASE_URL=https://data.gov.sg/api/action`, `PORT`, `CACHE_TTL_SECONDS`)
-- [ ] `src/config/env.ts` — load with dotenv, validate with zod, fail fast on missing/invalid
-- [ ] `GET /health` route
+- [x] `backend/`: TS Node project, `tsconfig.json`, `tsx watch` for dev (verified: server starts, `/health` responds)
+- [x] `.env` / `.env.example` moved into `backend/` (matches `dotenv`'s cwd-based lookup, avoids path hacks — see chat)
+- [x] `src/config/env.ts` — load with dotenv, validate with zod, fail fast on missing/invalid
+- [x] `GET /health` route, `src/app.ts` (createApp, no listen) / `src/index.ts` (listen) split for testability
+- [ ] Folders still to add: `src/services` (data.gov.sg client), `src/cache`, `src/insights` — Step 3
 - [ ] `Dockerfile` (multi-stage, for Fargate parity — not required for local run)
 
 ## Step 3 — Data integration layer

@@ -3,3 +3,5 @@ packages:
   - backend
   - infra
   - packages/*
+allowBuilds:
+  esbuild: true # needed so esbuild's postinstall can fetch its native binary (tsx depends on it)
