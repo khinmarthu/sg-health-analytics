@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"], // DOM: this code runs in the browser, not Node
+    "jsx": "react-jsx", // JSX transform, no need to `import React` in every file
+    "types": ["vite/client"], // typing for import.meta.env (VITE_ vars) etc.
+    "noEmit": true, // Vite/esbuild does the actual bundling; tsc here is type-checking only
+    "declaration": false // this is an app, not a library (same reasoning as backend/tsconfig.json)
+  },
+  "include": ["src", "vite.config.ts"]
+}
