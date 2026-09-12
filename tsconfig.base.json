@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", // output JS syntax level (modern Node/browsers)
+    "lib": ["ES2022"], // available global APIs matching that target
+    "module": "ESNext", // use native import/export syntax
+    "moduleResolution": "Bundler", // resolve modules the way Vite/modern bundlers do
+    "strict": true, // all strict type-checks on (null checks, no implicit any, etc.)
+    "esModuleInterop": true, // lets `import x from 'cjs-package'` work against CommonJS packages
+    "skipLibCheck": true, // don't type-check node_modules/@types, only our code (faster, less noise)
+    "forceConsistentCasingInFileNames": true, // catch Foo.ts vs foo.ts import mismatches
+    "resolveJsonModule": true, // allow `import data from './x.json'`
+    "isolatedModules": true, // required by single-file transpilers (esbuild/Vite); disallows a few whole-program-only TS patterns
+    "declaration": true, // emit .d.ts files so packages/types can be consumed with types
+    "sourceMap": true // emit .js.map for debugging back to original TS
+  }
+}
