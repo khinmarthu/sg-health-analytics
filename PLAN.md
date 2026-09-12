@@ -63,11 +63,13 @@
 - [x] Input validation (zod) on all query params; consistent error shape
 - [x] Dataset coverage corrected: 52 epi-weeks `2023-09`→`2024-08` (not calendar-year 2023 — see Dataset section above)
 
-## Step 4 — Frontend scaffold
-- [ ] Vite + React + TS in `frontend/`
-- [ ] Folders: `src/features/records`, `src/features/insights`, `src/components` (filters, table, charts), `src/app/store.ts`
-- [ ] RTK Query `createApi` (baseUrl = backend, **not** data.gov.sg directly)
-- [ ] `.env.example` for FE (`VITE_API_BASE_URL`)
+## Step 4 — Frontend scaffold ✅ (verified: renders real /api/filters + /api/records data in browser)
+- [x] Vite + React + TS in `frontend/`, hand-authored (extends shared `tsconfig.base.json`, matches `backend/` conventions)
+- [x] `packages/types` created for real (promoted from backend once frontend needed the identical shapes — see Decisions Log #9): `RawHealthRecord`, `InsightsSummary` + parts, `RecordsResponseData`, `FiltersResponseData`, `ApiResponse<T>`. Backend refactored to import from here too (single source of truth).
+- [x] `src/app/api.ts` — one RTK Query `createApi` (standard pattern: one slice per backend, not per feature) with `getFilters`/`getRecords`, baseUrl = backend (**not** data.gov.sg directly)
+- [x] `src/app/store.ts`, `src/main.tsx`, `src/App.tsx` (placeholder — real UI is Step 5)
+- [x] `.env` / `.env.example` for FE (`VITE_API_BASE_URL`) — only `VITE_`-prefixed vars reach client code, by Vite's own design
+- [ ] Folders `src/features/*`, `src/components/*` — not created yet, deferred to Step 5 when real components exist (no `features/insights` — insights is embedded in the records feature's response, not a separate concern)
 
 ## Step 5 — State & UI
 - [ ] Filter state: multi-select checkboxes per field, values from `/api/filters`
