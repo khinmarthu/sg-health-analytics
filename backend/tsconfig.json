@@ -5,7 +5,8 @@
     "moduleResolution": "NodeNext", // must match "module" above
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"] // Node globals (process, etc.)
+    "types": ["node"], // Node globals (process, etc.)
+    "declaration": false // this is an app, not a library — nothing imports backend's compiled output, so no .d.ts needed (overrides the base, which is set for library packages)
   },
   "include": ["src"]
 }

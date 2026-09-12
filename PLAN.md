@@ -4,7 +4,7 @@
 
 - **Title**: Average daily hospitalised / ICU cases by Epi-week
 - **Resource ID**: `d_0d1da54a73733d33e40f662f757af537`
-- **Coverage**: 52 epi-weeks, 2023 (312 records = 52 weeks × 3 age groups × 2 clinical statuses)
+- **Coverage**: 52 epi-weeks, `2023-09` through `2024-08` (an epi-year crossing the calendar boundary, not calendar-year-aligned — verified via real data, not assumed) — 312 records = 52 weeks × 3 age groups × 2 clinical statuses
 - **Fields** (raw API — all values arrive as strings, incl. numeric ones):
   - `epi_year`: `"2023"`
   - `epi_week`: `"2023-09"` (year-week, zero-padded, lexically sortable within a year)
@@ -28,6 +28,9 @@
 | 7 | Local dev without Docker | `pnpm dev` runs FE (Vite) + BE (tsx/ts-node-dev) directly; Dockerfile exists for Fargate parity/testing but isn't required to run locally |
 | 8 | Cache | `node-cache` library (in-process, TTL) | proven, small, avoids hand-rolling/testing our own TTL-map expiry logic; fine for single-process local run |
 | 9 | Shared types | Emergent, not contract-first | write types inline where first needed (backend); promote a type into `packages/types` only once a second consumer (frontend, or a test) needs the identical shape — avoids speculative/wrong-guessed shared shapes |
+| 10 | Endpoints | Two only: `GET /api/filters`, `GET /api/records` (no separate `/api/insights` — folded into `/api/records`'s response) | `/api/records` response includes an `insights` field alongside `items`, since insights must reflect the full matching set regardless of page — computing it as part of the same request avoids a second round trip that would just redo the same filter step. |
+| 11 | Cache design | Three separate caches, one per concern | (a) **Dataset cache**: full raw dataset, fixed key, owned by `/api/filters` (computes unique field values) — also reused directly by `/api/records` to compute insights when *no* filter is selected (no-filter insights = full-dataset aggregation, already held here, no extra fetch). (b) **Records proxy cache** (`recordsCache.ts`, unchanged): keyed by exact query (`filters`+`limit`+`offset`), pushes filters to data.gov.sg's own `filters` param, serves `items`. (c) **Filtered-insights cache** (new): keyed by `filters` only (no pagination) — populated only when a filter is passed; fetches *all* matching rows (own internal pagination loop against data.gov.sg), computes insights once, caches the computed insight object (not the raw rows) under that key. |
+| 12 | Transient upstream errors | Basic retry in `fetchPage` (3 attempts, 300ms delay) | Observed one real transient failure from data.gov.sg during testing (succeeded on manual retry). Kept minimal — no backoff/jitter — since caching already means most requests never reach data.gov.sg live anyway; this only matters on a cache miss. |
 
 ---
 
@@ -49,16 +52,16 @@
 - [ ] Folders still to add: `src/services` (data.gov.sg client), `src/cache`, `src/insights` — Step 3
 - [ ] `Dockerfile` (multi-stage, for Fargate parity — not required for local run)
 
-## Step 3 — Data integration layer
-- [ ] `DataGovClient`: wraps `datastore_search`, handles pagination (loop until `total` records fetched), typed response parsing
-- [ ] `node-cache` wrapper in `src/cache`: TTL from `CACHE_TTL_SECONDS`, key = query params hash, avoids re-hitting data.gov.sg per FE request
-- [ ] `GET /api/records` — paginated/filtered (epi_week range, clinical_status, age_group) proxy over cached raw data
-- [ ] `GET /api/insights` — precomputed aggregates:
-  - average count by age group
-  - week-over-week % change (latest vs prior epi-week)
-  - peak epi-week (highest total count)
-  - ICU-to-Hospitalised ratio (overall + by age group)
-- [ ] Input validation (zod) on all query params; consistent error shape
+## Step 3 — Data integration layer ✅ (all verified against live data.gov.sg)
+- [x] `DataGovClient` (`services/dataGovClient.ts`): `fetchPage` (single page, optional exact-match `filters`, retries up to 3x on transient failure), `fetchAllRecords(filters?)` (loops until `total` reached)
+- [x] `recordsCache.ts` — per-query proxy cache (Cache b)
+- [x] `insightsDatasetCache.ts` — full-dataset cache (Cache a), shared by `/api/filters` and no-filter insights
+- [x] `filteredInsightsCache.ts` — Cache (c): keyed by `filters` only, stores the computed insight object
+- [x] `insights/calculateInsights.ts`: average by age group, week-over-week % change, peak week, ICU:Hospitalised ratio — ICU:Hospitalised ratio omitted from the response when `clinical_status` is the active filter (decided: degenerate, nothing to compare)
+- [x] `GET /api/filters` — unique values per filterable field (`clinical_status`, `age_groups`, `epi_week`), from Cache (a), no request payload
+- [x] `GET /api/records` — `{ items, total, limit, offset, insights }`: `items`/pagination from Cache (b); `insights` from Cache (a) when no filter, else Cache (c)
+- [x] Input validation (zod) on all query params; consistent error shape
+- [x] Dataset coverage corrected: 52 epi-weeks `2023-09`→`2024-08` (not calendar-year 2023 — see Dataset section above)
 
 ## Step 4 — Frontend scaffold
 - [ ] Vite + React + TS in `frontend/`
@@ -67,11 +70,12 @@
 - [ ] `.env.example` for FE (`VITE_API_BASE_URL`)
 
 ## Step 5 — State & UI
-- [ ] Redux slice: filter state (epi-week range, clinical_status, age_group)
-- [ ] `FilterBar` component wired to slice + triggers RTK Query refetch
-- [ ] `DataTable` (paginated) for `/api/records`
-- [ ] Charts (Recharts): line chart weekly trend, bar chart age-group comparison, driven by `/api/insights`
+- [ ] Filter state: multi-select checkboxes per field, values from `/api/filters`
+- [ ] Insight summary display, between filters and table, from `/api/records`'s embedded `insights` field
+- [ ] Table (paginated, page 1 / 100 per page by default) for `/api/records`'s `items`
+- [ ] Charts: deferred, not building for now
 - [ ] Loading/error/empty states via RTK Query hooks
+- [ ] MUI (`@mui/material`) for components — confirmed no compatibility issues with Vite/React/TS; specific table component (plain `Table` vs `@mui/x-data-grid`) to be decided when we build this step
 
 ## Step 6 — Testing
 - [ ] Backend (Vitest + Supertest): `DataGovClient` unit tests (mocked HTTP), insights calculation tests (known input → expected output), route integration tests
