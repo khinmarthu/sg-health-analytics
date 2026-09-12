@@ -1,37 +1,11 @@
-import type { RawHealthRecord } from "../services/dataGovClient.js";
-
-export interface AgeGroupAverage {
-  ageGroup: string;
-  average: number;
-}
-
-export interface WeekOverWeekChange {
-  latestWeek: string;
-  previousWeek: string;
-  latestTotal: number;
-  previousTotal: number;
-  percentChange: number;
-}
-
-export interface PeakWeek {
-  epiWeek: string;
-  total: number;
-}
-
-export interface IcuToHospitalisedRatio {
-  icuTotal: number;
-  hospitalisedTotal: number;
-  ratio: number;
-}
-
-export interface InsightsSummary {
-  averageByAgeGroup: AgeGroupAverage[];
-  // omitted (not just null) when the matching rows don't support the metric —
-  // see calculateInsights below for exactly when.
-  weekOverWeekChange?: WeekOverWeekChange;
-  peakWeek?: PeakWeek;
-  icuToHospitalisedRatio?: IcuToHospitalisedRatio;
-}
+import type {
+  RawHealthRecord,
+  AgeGroupAverage,
+  WeekOverWeekChange,
+  PeakWeek,
+  IcuToHospitalisedRatio,
+  InsightsSummary,
+} from "@sg-health/types";
 
 interface ParsedRecord {
   epiWeek: string;

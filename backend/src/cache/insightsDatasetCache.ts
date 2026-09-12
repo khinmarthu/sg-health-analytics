@@ -1,6 +1,7 @@
+import type { RawHealthRecord } from "@sg-health/types";
 import NodeCache from "node-cache";
 import { env } from "../config/env.js";
-import { fetchAllRecords, type RawHealthRecord } from "../services/dataGovClient.js";
+import { fetchAllRecords } from "../services/dataGovClient.js";
 
 const cache = new NodeCache({ stdTTL: env.cacheTtlSeconds });
 const FULL_DATASET_KEY = "full-dataset";

@@ -1,6 +1,7 @@
+import type { RawHealthRecord } from "@sg-health/types";
 import NodeCache from "node-cache";
 import { env } from "../config/env.js";
-import { fetchPage, type RawHealthRecord } from "../services/dataGovClient.js";
+import { fetchPage } from "../services/dataGovClient.js";
 
 const cache = new NodeCache({ stdTTL: env.cacheTtlSeconds });
 

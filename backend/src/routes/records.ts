@@ -1,3 +1,4 @@
+import type { ApiResponse, RecordsResponseData } from "@sg-health/types";
 import { Router } from "express";
 import { z } from "zod";
 import { getCachedRecords } from "../cache/recordsCache.js";
@@ -44,7 +45,9 @@ recordsRouter.get("/api/records", async (req, res) => {
       ? await getCachedFilteredInsights(filters)
       : calculateInsights(await getCachedFullDataset());
 
-    res.json({ success: true, data: { items: records, total, limit, offset, insights } });
+    const data: RecordsResponseData = { items: records, total, limit, offset, insights };
+    const body: ApiResponse<RecordsResponseData> = { success: true, data };
+    res.json(body);
   } catch (err) {
     res.status(502).json({ success: false, error: { message: (err as Error).message } });
   }

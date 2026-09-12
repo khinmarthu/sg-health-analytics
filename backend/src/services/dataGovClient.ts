@@ -1,15 +1,5 @@
+import type { RawHealthRecord } from "@sg-health/types";
 import { env } from "../config/env.js";
-
-// Raw shape as data.gov.sg actually returns it: every field is a string
-// except _id, even the numeric-looking ones (epi_year, count).
-export interface RawHealthRecord {
-  _id: number;
-  epi_year: string;
-  epi_week: string;
-  clinical_status: string;
-  age_groups: string;
-  count: string;
-}
 
 interface DatastoreSearchResponse {
   success: boolean;

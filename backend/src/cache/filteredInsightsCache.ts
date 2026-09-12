@@ -1,7 +1,8 @@
 import NodeCache from "node-cache";
 import { env } from "../config/env.js";
 import { fetchAllRecords } from "../services/dataGovClient.js";
-import { calculateInsights, type InsightsSummary } from "../insights/calculateInsights.js";
+import type { InsightsSummary } from "@sg-health/types";
+import { calculateInsights } from "../insights/calculateInsights.js";
 
 const cache = new NodeCache({ stdTTL: env.cacheTtlSeconds });
 
