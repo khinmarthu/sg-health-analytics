@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";
 import { store } from "./app/store.js";
 import { App } from "./App.js";
+import "./index.css";
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("#root element not found in index.html");
