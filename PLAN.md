@@ -38,6 +38,10 @@
 | 17 | Table column sorting | Server-side, pushed to data.gov.sg's own `sort` param (verified: `"count desc"` and `"epi_year asc"` syntax, works standalone and combined with `filters`) — not client-side re-sort of the current page | Sort affects which rows land on which page, so client-side sorting the visible ~100 rows would be incorrect/incomplete across pages. `/api/records` gains `sort_by` (enum: `epi_year`\|`epi_week`\|`clinical_status`\|`age_groups`\|`count`) + `sort_dir` (`asc`\|`desc`); included in `recordsCache.ts`'s cache key. Doesn't touch insights (aggregation is order-independent). MUI `TableSortLabel` on clickable headers; click same column toggles direction, different column resets to ascending. Defaults to `epi_year asc` on load (was unsorted). |
 | 18 | Table columns | Added `epi_year` as its own column (was previously omitted as redundant with `epi_week`, which already encodes the year) | Visible and sortable on its own, not just implied inside `epi_week` |
 | 19 | Test scope | Deliberately minimal: `calculateInsights` unit tests + a handful of route tests (cache layer mocked) on the backend; one component render test on the frontend. No MSW, no `DataGovClient`-level HTTP mocking, no chart tests (no charts exist) | Backend's real business logic (the insights math) is the highest-value thing to test and is fully covered; `dataGovClient`'s actual behavior was already verified manually against the live API throughout development. Broader coverage (MSW-mocked RTK Query, filter-interaction tests, etc.) would add real value but also real effort disproportionate to this project's scope. |
+| 20 | CDK stack structure | One Stack, composed of two Constructs (`BackendConstruct`, `FrontendConstruct`) rather than two separate Stacks | Nothing here needs independent deployment lifecycles; splitting into Stacks matters when pieces are deployed/torn down separately, which doesn't apply since this project doesn't deploy at all |
+| 21 | ECS pattern | `aws-ecs-patterns`' `ApplicationLoadBalancedFargateService` instead of manually wiring Cluster + Service + TaskDefinition + ALB + Listener + TargetGroup individually | The official high-level construct for exactly this shape (one load-balanced Fargate service) — far less code, still fully inspectable, not a black box |
+| 22 | Docker build context | Monorepo root, not `backend/` alone, with a root `.dockerignore` (excludes `node_modules`, `**/dist`, `infra/cdk.out`, `.git`) | `backend` depends on the workspace package `@sg-health/types`; a `backend/`-only build context can't see it. The `.dockerignore` also fixes a real bug hit during this build: without it, CDK's asset-staging copy recursed into its own `infra/cdk.out` output directory (which lives inside the root being copied), hitting `ENAMETOOLONG` from the resulting infinite nesting. |
+| 23 | pnpm workspace + Docker | `pnpm deploy --prod` in the Dockerfile's build stage, not a plain copy of `backend/node_modules` | pnpm workspaces link sibling packages (like `@sg-health/types`) as symlinks into the pnpm store; copying `node_modules` alone into the runtime stage would carry broken symlinks. `pnpm deploy` resolves them into a self-contained, real-files-only folder. |
 
 ---
 
@@ -57,7 +61,7 @@
 - [x] `src/config/env.ts` — load with dotenv, validate with zod, fail fast on missing/invalid
 - [x] `GET /health` route, `src/app.ts` (createApp, no listen) / `src/index.ts` (listen) split for testability
 - [x] Folders `src/services`, `src/cache`, `src/insights`
-- [ ] `Dockerfile` (multi-stage, for Fargate parity — not required for local run)
+- [x] `Dockerfile` (multi-stage; build context is the monorepo root, not required for local run — see Step 7)
 
 ## Step 3 — Data integration layer ✅ (all verified against live data.gov.sg)
 - [x] `DataGovClient` (`services/dataGovClient.ts`): `fetchPage` (single page, optional exact-match `filters`, retries up to 3x on transient failure), `fetchAllRecords(filters?)` (loops until `total` reached)
@@ -73,10 +77,9 @@
 ## Step 4 — Frontend scaffold ✅ (verified: renders real /api/filters + /api/records data in browser)
 - [x] Vite + React + TS in `frontend/`, hand-authored (extends shared `tsconfig.base.json`, matches `backend/` conventions)
 - [x] `packages/types` created for real (promoted from backend once frontend needed the identical shapes — see Decisions Log #9): `RawHealthRecord`, `InsightsSummary` + parts, `RecordsResponseData`, `FiltersResponseData`, `ApiResponse<T>`. Backend refactored to import from here too (single source of truth).
-- [x] `src/app/api.ts` — one RTK Query `createApi` (standard pattern: one slice per backend, not per feature) with `getFilters`/`getRecords`, baseUrl = backend (**not** data.gov.sg directly)
-- [x] `src/app/store.ts`, `src/main.tsx`, `src/App.tsx` (placeholder — real UI is Step 5)
+- [x] `redux/api.ts` — one RTK Query `createApi` (standard pattern: one slice per backend, not per feature) with `getFilters`/`getRecords`, baseUrl = backend (**not** data.gov.sg directly)
+- [x] `redux/store.ts`, `main.tsx`, `App.tsx` (placeholder — real UI is Step 5)
 - [x] `.env` / `.env.example` for FE (`VITE_API_BASE_URL`) — only `VITE_`-prefixed vars reach client code, by Vite's own design
-- [ ] Folders `src/features/*`, `src/components/*` — not created yet, deferred to Step 5 when real components exist (no `features/insights` — insights is embedded in the records feature's response, not a separate concern)
 
 ## Step 5 — State & UI ✅ (verified live via HMR)
 - [x] Folder split (container/presentational convention):
@@ -98,12 +101,13 @@
 - [x] Frontend (Vitest + RTL), 2 tests: `InsightSummary` render test — all metrics present, and an omitted metric correctly absent
 - [x] Root `pnpm test` runs both workspaces
 
-## Step 7 — IaC (AWS CDK, TypeScript)
-- [ ] `infra/` CDK app
-- [ ] VPC (small, 1 AZ or 2 for realism) + ECS Cluster + Fargate Service + ALB — backend
-- [ ] S3 + CloudFront — frontend static hosting
-- [ ] `cdk synth` succeeds (no deploy)
-- [ ] Parameterize dataset ID / cache TTL via CDK context or SSM (not hardcoded)
+## Step 7 — IaC (AWS CDK, TypeScript) ✅ (cdk synth verified: exit 0, full CloudFormation template generated)
+- [x] `infra/` CDK app: `bin/app.ts` (entry point) → `SgHealthAnalyticsStack` → `BackendConstruct` + `FrontendConstruct`
+- [x] `BackendConstruct`: VPC (2 AZs, 1 NAT gateway) + ECS Cluster + `ApplicationLoadBalancedFargateService` (bundles Fargate Service + Task Definition + ALB + Listener + Target Group) — backend
+- [x] `FrontendConstruct`: private S3 bucket (Origin Access Control, no public access) + CloudFront distribution — frontend static hosting
+- [x] `backend/Dockerfile` (multi-stage; build context is the monorepo root via `.dockerignore`, so the workspace package `@sg-health/types` is visible; `pnpm deploy` resolves workspace symlinks into a self-contained runtime image)
+- [x] `cdk synth` succeeds standalone: resource counts match expectations (VPC/subnets/NAT, ECS, ALB, IAM, S3, CloudFront), container image resolves to a CloudFormation `Fn::Sub` ECR reference (built only at real `cdk deploy` time, which this project doesn't do)
+- [x] `RESOURCE_ID`/`CACHE_TTL_SECONDS` parameterized via CDK context (`cdk.json`), not hardcoded; `DATA_GOV_API_KEY` referenced from Secrets Manager by name (not created/stored in CDK — see Decisions Log #6)
 
 ## Step 8 — Documentation
 - [ ] `README.md`: setup (pnpm install, env files, `pnpm dev`), architecture diagram (Mermaid), API contract (`/api/filters`, `/api/records`), known limitations

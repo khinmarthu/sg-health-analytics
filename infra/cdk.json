@@ -1,0 +1,7 @@
+{
+  "app": "npx tsx bin/app.ts",
+  "context": {
+    "resourceId": "d_0d1da54a73733d33e40f662f757af537",
+    "cacheTtlSeconds": "300"
+  }
+}
