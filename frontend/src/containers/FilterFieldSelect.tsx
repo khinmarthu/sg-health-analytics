@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   Checkbox,
   FormControl,
@@ -23,10 +24,27 @@ export function FilterFieldSelect({ field, label, options }: FilterFieldSelectPr
   const dispatch = useAppDispatch();
   const selected = useAppSelector((state) => state.filters[field]);
 
+  // Local "draft" selection for immediate checkbox feedback while the
+  // dropdown is open. Only committed to Redux (which triggers the
+  // /api/records refetch) when the dropdown closes — otherwise every
+  // single checkbox click would fire its own request while the user is
+  // still picking.
+  const [draft, setDraft] = useState<string[]>(selected);
+
+  // Keep draft in sync if the global selection changes elsewhere
+  // (e.g. the "Clear filters" button).
+  useEffect(() => {
+    setDraft(selected);
+  }, [selected]);
+
   const handleChange = (event: SelectChangeEvent<string[]>) => {
     const { value } = event.target;
     const values = typeof value === "string" ? value.split(",") : value;
-    dispatch(setField({ field, values }));
+    setDraft(values);
+  };
+
+  const handleClose = () => {
+    dispatch(setField({ field, values: draft }));
   };
 
   return (
@@ -35,14 +53,15 @@ export function FilterFieldSelect({ field, label, options }: FilterFieldSelectPr
       <Select
         labelId={`${field}-label`}
         multiple
-        value={selected}
+        value={draft}
         onChange={handleChange}
+        onClose={handleClose}
         input={<OutlinedInput label={label} />}
         renderValue={(values) => (values.length === 0 ? "All" : values.join(", "))}
       >
         {options.map((option) => (
           <MenuItem key={option} value={option}>
-            <Checkbox checked={selected.includes(option)} />
+            <Checkbox checked={draft.includes(option)} />
             <ListItemText primary={option} />
           </MenuItem>
         ))}
