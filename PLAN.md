@@ -37,6 +37,7 @@
 | 16 | Page layout | Full-height flex column (`html`/`body`/`#root` at 100%, page itself never scrolls) — title/filters/insight fixed at top, only the table's rows scroll internally, pagination always visible | Avoids needing to scroll the whole page to reach pagination controls |
 | 17 | Table column sorting | Server-side, pushed to data.gov.sg's own `sort` param (verified: `"count desc"` and `"epi_year asc"` syntax, works standalone and combined with `filters`) — not client-side re-sort of the current page | Sort affects which rows land on which page, so client-side sorting the visible ~100 rows would be incorrect/incomplete across pages. `/api/records` gains `sort_by` (enum: `epi_year`\|`epi_week`\|`clinical_status`\|`age_groups`\|`count`) + `sort_dir` (`asc`\|`desc`); included in `recordsCache.ts`'s cache key. Doesn't touch insights (aggregation is order-independent). MUI `TableSortLabel` on clickable headers; click same column toggles direction, different column resets to ascending. Defaults to `epi_year asc` on load (was unsorted). |
 | 18 | Table columns | Added `epi_year` as its own column (was previously omitted as redundant with `epi_week`, which already encodes the year) | Visible and sortable on its own, not just implied inside `epi_week` |
+| 19 | Test scope | Deliberately minimal: `calculateInsights` unit tests + a handful of route tests (cache layer mocked) on the backend; one component render test on the frontend. No MSW, no `DataGovClient`-level HTTP mocking, no chart tests (no charts exist) | Backend's real business logic (the insights math) is the highest-value thing to test and is fully covered; `dataGovClient`'s actual behavior was already verified manually against the live API throughout development. Broader coverage (MSW-mocked RTK Query, filter-interaction tests, etc.) would add real value but also real effort disproportionate to this project's scope. |
 
 ---
 
@@ -92,10 +93,10 @@
 - [x] Full-height layout: only table rows scroll, header + pagination always visible (Decisions Log #16) — `index.css` reset, `App.tsx`/`RecordsTable.tsx` flex layout
 - [x] `App.tsx` resets to page 1 whenever the filter selection changes
 
-## Step 6 — Testing
-- [ ] Backend (Vitest + Supertest): `DataGovClient` unit tests (mocked HTTP), insights calculation tests (known input → expected output), route integration tests
-- [ ] Frontend (Vitest + RTL + MSW): filter interaction tests, RTK Query mocked via MSW, chart/table render tests
-- [ ] Coverage script at root (`pnpm test`, runs both workspaces)
+## Step 6 — Testing ✅ (kept deliberately minimal — see Decisions Log #19)
+- [x] Backend (Vitest + Supertest), 13 tests: `calculateInsights` unit tests (7 — averages, week-over-week, peak week, ICU:Hospitalised ratio incl. both omission cases), route tests for `/api/records`/`/api/filters`/`/health` (6 — cache layer mocked, not `fetch`/the real API)
+- [x] Frontend (Vitest + RTL), 2 tests: `InsightSummary` render test — all metrics present, and an omitted metric correctly absent
+- [x] Root `pnpm test` runs both workspaces
 
 ## Step 7 — IaC (AWS CDK, TypeScript)
 - [ ] `infra/` CDK app
