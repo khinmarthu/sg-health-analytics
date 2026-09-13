@@ -1,13 +1,17 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import type { ApiResponse, FiltersResponseData, RecordsResponseData } from "@sg-health/types";
+import type {
+  ApiResponse,
+  FiltersResponseData,
+  RecordsFilters,
+  RecordsResponseData,
+} from "@sg-health/types";
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
 export interface RecordsQueryParams {
   limit: number;
   offset: number;
-  clinical_status?: string;
-  age_groups?: string;
+  filters?: RecordsFilters;
 }
 
 // One api slice for our whole backend (standard RTK Query pattern — a
@@ -21,7 +25,17 @@ export const api = createApi({
       query: () => "/api/filters",
     }),
     getRecords: builder.query<ApiResponse<RecordsResponseData>, RecordsQueryParams>({
-      query: (params) => ({ url: "/api/records", params }),
+      query: ({ limit, offset, filters }) => ({
+        url: "/api/records",
+        params: {
+          limit,
+          offset,
+          // omit entirely when empty, rather than sending "filters={}"
+          ...(filters && Object.keys(filters).length > 0
+            ? { filters: JSON.stringify(filters) }
+            : {}),
+        },
+      }),
     }),
   }),
 });
