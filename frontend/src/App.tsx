@@ -10,6 +10,8 @@ import { RecordsTable } from "./components/RecordsTable.js";
 export function App() {
   const [limit, setLimit] = useState(100);
   const [offset, setOffset] = useState(0);
+  const [sortBy, setSortBy] = useState<string | undefined>("epi_year");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const filters = useAppSelector(selectRecordsFilters);
 
   // Reset to page 1 whenever the filter selection changes — otherwise you
@@ -19,7 +21,13 @@ export function App() {
     setOffset(0);
   }, [filtersKey]);
 
-  const { data, isLoading, error } = useGetRecordsQuery({ limit, offset, filters });
+  const { data, isLoading, error } = useGetRecordsQuery({
+    limit,
+    offset,
+    filters,
+    sort_by: sortBy,
+    sort_dir: sortDir,
+  });
 
   return (
     <Container sx={{ height: "100%", display: "flex", flexDirection: "column", py: 3 }}>
@@ -49,6 +57,12 @@ export function App() {
             offset={offset}
             onOffsetChange={setOffset}
             onLimitChange={setLimit}
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSortChange={(field, direction) => {
+              setSortBy(field);
+              setSortDir(direction);
+            }}
           />
         )}
       </Box>

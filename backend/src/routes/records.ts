@@ -33,8 +33,14 @@ const filtersSchema = z
   .strict();
 
 // Sortable fields — a subset of RawHealthRecord's keys, deliberately
-// excluding _id/epi_year (not meaningful to sort by in the UI).
-const sortableFields = ["epi_week", "clinical_status", "age_groups", "count"] as const;
+// excluding _id (not meaningful to sort by in the UI).
+const sortableFields = [
+  "epi_year",
+  "epi_week",
+  "clinical_status",
+  "age_groups",
+  "count",
+] as const;
 
 // Validates OUR API's own incoming query params (not the gov data response —
 // that's a separate boundary). A client could send anything, so this

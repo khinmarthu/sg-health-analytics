@@ -35,6 +35,7 @@
 | 14 | MUI table component | Plain `@mui/material` Table | Pagination/filtering logic already lives in backend + component state; `@mui/x-data-grid`'s built-in features would mostly go unused at this scale (312 rows) |
 | 15 | Filter selection state | Redux Toolkit slice (`filtersSlice.ts`), not local `useState` | Matches original plan; demonstrates Redux Toolkit slice usage alongside RTK Query (already in use for server state) |
 | 16 | Page layout | Full-height flex column (`html`/`body`/`#root` at 100%, page itself never scrolls) — title/filters/insight fixed at top, only the table's rows scroll internally, pagination always visible | User-requested UX: avoids needing to scroll the whole page to reach pagination controls |
+| 17 | Table column sorting | Server-side, pushed to data.gov.sg's own `sort` param (verified: `"count desc"` syntax, works standalone and combined with `filters`) — not client-side re-sort of the current page | Sort affects which rows land on which page, so client-side sorting the visible ~100 rows would be incorrect/incomplete across pages. `/api/records` gains `sort_by` (enum: `epi_week`\|`clinical_status`\|`age_groups`\|`count`) + `sort_dir` (`asc`\|`desc`); included in `recordsCache.ts`'s cache key. Doesn't touch insights (aggregation is order-independent). MUI `TableSortLabel` on clickable headers; click same column toggles direction, different column resets to ascending. |
 
 ---
 
@@ -63,7 +64,7 @@
 - [x] `filteredInsightsCache.ts` — Cache (c): keyed by `filters` only, stores the computed insight object
 - [x] `insights/calculateInsights.ts`: average by age group, week-over-week % change, peak week, ICU:Hospitalised ratio — ICU:Hospitalised ratio omitted from the response when `clinical_status` is the active filter (decided: degenerate, nothing to compare)
 - [x] `GET /api/filters` — unique values per filterable field (`clinical_status`, `age_groups`, `epi_week`), from Cache (a), no request payload
-- [x] `GET /api/records` — `{ items, total, limit, offset, insights }`: `items`/pagination from Cache (b); `insights` from Cache (a) when no filter, else Cache (c)
+- [x] `GET /api/records` — `{ items, total, limit, offset, insights }`: `items`/pagination from Cache (b); `insights` from Cache (a) when no filter, else Cache (c); optional `sort_by`/`sort_dir` pushed to data.gov.sg's own `sort` param (Decisions Log #17)
 - [x] Input validation (zod) on all query params; consistent error shape
 - [x] Dataset coverage corrected: 52 epi-weeks `2023-09`→`2024-08` (not calendar-year 2023 — see Dataset section above)
 
@@ -83,6 +84,7 @@
 - [x] `FilterFieldSelect.tsx` — one reusable MUI `<Select multiple>` w/ checkboxes; `FilterBar.tsx` — one per filterable field (`clinical_status`, `age_groups`, `epi_week`), values from `/api/filters`, + a clear-filters button
 - [x] `InsightSummary.tsx` — renders `/api/records`'s embedded `insights`; fields the backend omits (see Step 3's `calculateInsights` note on the ICU:Hospitalised ratio) are simply not rendered, not shown as null/zero
 - [x] `RecordsTable.tsx` — paginated MUI `Table` (page 1 / 100 per page default), backend-driven pagination (offset/limit), sticky table header
+- [x] Column sorting: clickable headers (`TableSortLabel`), server-side via `sort_by`/`sort_dir` (Decisions Log #17), sort state lives in `App.tsx` alongside pagination state
 - [x] Charts: still deferred, not building
 - [x] Loading/error states via RTK Query hooks (`isLoading`, `error`)
 - [x] MUI: plain `@mui/material` Table (Decisions Log #14)

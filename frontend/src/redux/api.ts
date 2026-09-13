@@ -12,6 +12,8 @@ export interface RecordsQueryParams {
   limit: number;
   offset: number;
   filters?: RecordsFilters;
+  sort_by?: string;
+  sort_dir?: "asc" | "desc";
 }
 
 // One api slice for our whole backend (standard RTK Query pattern — a
@@ -25,15 +27,17 @@ export const api = createApi({
       query: () => "/api/filters",
     }),
     getRecords: builder.query<ApiResponse<RecordsResponseData>, RecordsQueryParams>({
-      query: ({ limit, offset, filters }) => ({
+      query: ({ limit, offset, filters, sort_by, sort_dir }) => ({
         url: "/api/records",
         params: {
           limit,
           offset,
-          // omit entirely when empty, rather than sending "filters={}"
+          // omit entirely when empty/unset, rather than sending "filters={}"
+          // or a meaningless sort_by=undefined
           ...(filters && Object.keys(filters).length > 0
             ? { filters: JSON.stringify(filters) }
             : {}),
+          ...(sort_by ? { sort_by, sort_dir } : {}),
         },
       }),
     }),
