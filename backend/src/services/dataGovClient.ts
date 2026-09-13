@@ -44,10 +44,15 @@ export async function fetchPage({ limit, offset, filters, sort }: FetchPageParam
     url.searchParams.set("sort", sort);
   }
 
+  // Optional — raises data.gov.sg's rate limit ceiling; omitted entirely
+  // when unset, so this degrades gracefully with no key at all.
+  const headers: Record<string, string> = {};
+  if (env.dataGovApiKey) headers["x-api-key"] = env.dataGovApiKey;
+
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { headers });
       const json = (await response.json()) as DatastoreSearchResponse;
       if (!json.success || !json.result) {
         throw new Error(`data.gov.sg returned an error: ${JSON.stringify(json.error)}`);

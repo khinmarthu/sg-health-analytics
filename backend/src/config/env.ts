@@ -6,6 +6,10 @@ const envSchema = z.object({
   RESOURCE_ID: z.string().min(1, "RESOURCE_ID is required"),
   DATA_GOV_BASE_URL: z.string().url(),
   CACHE_TTL_SECONDS: z.coerce.number().default(300),
+  // Optional: only raises data.gov.sg's rate limit, not required for
+  // correctness (see Decisions Log #6). Locally from .env; in CI this
+  // becomes a GitHub Actions repository secret, no code change needed.
+  DATA_GOV_API_KEY: z.string().optional(),
 });
 
 // parse() throws on missing/invalid values, so a bad .env fails fast at
@@ -18,4 +22,5 @@ export const env = {
   resourceId: parsed.RESOURCE_ID,
   dataGovBaseUrl: parsed.DATA_GOV_BASE_URL,
   cacheTtlSeconds: parsed.CACHE_TTL_SECONDS,
+  dataGovApiKey: parsed.DATA_GOV_API_KEY,
 };

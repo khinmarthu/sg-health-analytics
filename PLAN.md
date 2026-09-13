@@ -19,23 +19,24 @@
 
 | # | Decision | Choice | Why |
 |---|---|---|---|
-| 1 | Package manager | pnpm | user preference |
+| 1 | Package manager | pnpm | workspace protocol, faster installs via content-addressable store |
 | 2 | Repo structure | pnpm workspaces monorepo | shared types, one install, one lockfile |
-| 3 | AWS compute (IaC) | ECS Fargate | container parity with local Docker, user's choice |
+| 3 | AWS compute (IaC) | ECS Fargate | container parity with local Docker |
 | 4 | Frontend test runner | Vitest + RTL | native Vite integration, no extra transform config |
 | 5 | Backend test runner | Vitest + Supertest | one test toolchain across the monorepo instead of Jest+Vitest split |
-| 6 | Secrets | data.gov.sg API key exists but is optional (only raises rate limits; not required for correctness). Skipped entirely — not worth the complexity for a cached, ~384-row dataset. `.env` holds non-secret config only (`RESOURCE_ID`, `DATA_GOV_BASE_URL`, `PORT`, `CACHE_TTL_SECONDS`). `.env` is gitignored, `.env.example` is committed. If a keyed source is ever added later, key goes in AWS Secrets Manager / SSM Parameter Store (referenced, not hardcoded, in CDK) — documented in ADR. |
+| 6 | Secrets | API key sent as optional `x-api-key` header (app works with no key — `dataGovApiKey` is `undefined`-safe throughout) | data.gov.sg returned transient failures during testing (surfaced to the frontend as our own 502 wrapper); the key raises data.gov.sg's rate-limit ceiling. Locally: `backend/.env` (gitignored, real value present; `.env.example` has a blank placeholder). In CI (not yet built): a GitHub Actions repository secret, not AWS Secrets Manager — no infrastructure is deployed yet (Step 7 IaC is `cdk synth`-only), so nothing running would need to read it at runtime. Note: this legacy `datastore_search` endpoint doesn't appear to reject invalid keys (tested), so the rate-limit benefit couldn't be positively confirmed — kept anyway since it's harmless. |
 | 7 | Local dev without Docker | `pnpm dev` runs FE (Vite) + BE (tsx/ts-node-dev) directly; Dockerfile exists for Fargate parity/testing but isn't required to run locally |
 | 8 | Cache | `node-cache` library (in-process, TTL) | proven, small, avoids hand-rolling/testing our own TTL-map expiry logic; fine for single-process local run |
 | 9 | Shared types | Emergent, not contract-first | write types inline where first needed (backend); promote a type into `packages/types` only once a second consumer (frontend, or a test) needs the identical shape — avoids speculative/wrong-guessed shared shapes |
 | 10 | Endpoints | Two only: `GET /api/filters`, `GET /api/records` (no separate `/api/insights` — folded into `/api/records`'s response) | `/api/records` response includes an `insights` field alongside `items`, since insights must reflect the full matching set regardless of page — computing it as part of the same request avoids a second round trip that would just redo the same filter step. |
 | 11 | Cache design | Three separate caches, one per concern | (a) **Dataset cache**: full raw dataset, fixed key, owned by `/api/filters` (computes unique field values) — also reused directly by `/api/records` to compute insights when *no* filter is selected (no-filter insights = full-dataset aggregation, already held here, no extra fetch). (b) **Records proxy cache** (`recordsCache.ts`, unchanged): keyed by exact query (`filters`+`limit`+`offset`), pushes filters to data.gov.sg's own `filters` param, serves `items`. (c) **Filtered-insights cache** (new): keyed by `filters` only (no pagination) — populated only when a filter is passed; fetches *all* matching rows (own internal pagination loop against data.gov.sg), computes insights once, caches the computed insight object (not the raw rows) under that key. |
 | 12 | Transient upstream errors | Basic retry in `fetchPage` (3 attempts, 300ms delay) | Observed one real transient failure from data.gov.sg during testing (succeeded on manual retry). Kept minimal — no backoff/jitter — since caching already means most requests never reach data.gov.sg live anyway; this only matters on a cache miss. |
-| 13 | `/api/records` filter query shape | One `filters` query param, a JSON string matching the exact shape data.gov.sg's own `filters` accepts (`{"clinical_status":"ICU","age_groups":[...]}`) — not our own separate-param-per-field convention | User's suggestion; simpler than inventing a translation layer since it's the same shape we'd already verified works upstream. Each field accepts one value or an array (OR-match). Validated server-side with zod (`.strict()`, known enums for `clinical_status`/`age_groups`, a `YYYY-WW` pattern for `epi_week`) — this is validating *our* API's input, a different boundary from trusting data.gov.sg's response. `RecordsFilters` type added to `packages/types` since both FE and BE construct/consume this exact shape. |
+| 13 | `/api/records` filter query shape | One `filters` query param, a JSON string matching the exact shape data.gov.sg's own `filters` accepts (`{"clinical_status":"ICU","age_groups":[...]}`) — not our own separate-param-per-field convention | Simpler than a translation layer since it's the same shape already verified to work upstream. Each field accepts one value or an array (OR-match). Validated server-side with zod (`.strict()`, known enums for `clinical_status`/`age_groups`, a `YYYY-WW` pattern for `epi_week`) — this is validating *our* API's input, a different boundary from trusting data.gov.sg's response. `RecordsFilters` type added to `packages/types` since both FE and BE construct/consume this exact shape. |
 | 14 | MUI table component | Plain `@mui/material` Table | Pagination/filtering logic already lives in backend + component state; `@mui/x-data-grid`'s built-in features would mostly go unused at this scale (312 rows) |
 | 15 | Filter selection state | Redux Toolkit slice (`filtersSlice.ts`), not local `useState` | Matches original plan; demonstrates Redux Toolkit slice usage alongside RTK Query (already in use for server state) |
-| 16 | Page layout | Full-height flex column (`html`/`body`/`#root` at 100%, page itself never scrolls) — title/filters/insight fixed at top, only the table's rows scroll internally, pagination always visible | User-requested UX: avoids needing to scroll the whole page to reach pagination controls |
-| 17 | Table column sorting | Server-side, pushed to data.gov.sg's own `sort` param (verified: `"count desc"` syntax, works standalone and combined with `filters`) — not client-side re-sort of the current page | Sort affects which rows land on which page, so client-side sorting the visible ~100 rows would be incorrect/incomplete across pages. `/api/records` gains `sort_by` (enum: `epi_week`\|`clinical_status`\|`age_groups`\|`count`) + `sort_dir` (`asc`\|`desc`); included in `recordsCache.ts`'s cache key. Doesn't touch insights (aggregation is order-independent). MUI `TableSortLabel` on clickable headers; click same column toggles direction, different column resets to ascending. |
+| 16 | Page layout | Full-height flex column (`html`/`body`/`#root` at 100%, page itself never scrolls) — title/filters/insight fixed at top, only the table's rows scroll internally, pagination always visible | Avoids needing to scroll the whole page to reach pagination controls |
+| 17 | Table column sorting | Server-side, pushed to data.gov.sg's own `sort` param (verified: `"count desc"` and `"epi_year asc"` syntax, works standalone and combined with `filters`) — not client-side re-sort of the current page | Sort affects which rows land on which page, so client-side sorting the visible ~100 rows would be incorrect/incomplete across pages. `/api/records` gains `sort_by` (enum: `epi_year`\|`epi_week`\|`clinical_status`\|`age_groups`\|`count`) + `sort_dir` (`asc`\|`desc`); included in `recordsCache.ts`'s cache key. Doesn't touch insights (aggregation is order-independent). MUI `TableSortLabel` on clickable headers; click same column toggles direction, different column resets to ascending. Defaults to `epi_year asc` on load (was unsorted). |
+| 18 | Table columns | Added `epi_year` as its own column (was previously omitted as redundant with `epi_week`, which already encodes the year) | Visible and sortable on its own, not just implied inside `epi_week` |
 
 ---
 
@@ -51,10 +52,10 @@
 
 ## Step 2 — Backend scaffold
 - [x] `backend/`: TS Node project, `tsconfig.json`, `tsx watch` for dev (verified: server starts, `/health` responds)
-- [x] `.env` / `.env.example` moved into `backend/` (matches `dotenv`'s cwd-based lookup, avoids path hacks — see chat)
+- [x] `.env` / `.env.example` moved into `backend/` (matches `dotenv`'s cwd-based lookup, avoids path hacks)
 - [x] `src/config/env.ts` — load with dotenv, validate with zod, fail fast on missing/invalid
 - [x] `GET /health` route, `src/app.ts` (createApp, no listen) / `src/index.ts` (listen) split for testability
-- [ ] Folders still to add: `src/services` (data.gov.sg client), `src/cache`, `src/insights` — Step 3
+- [x] Folders `src/services`, `src/cache`, `src/insights`
 - [ ] `Dockerfile` (multi-stage, for Fargate parity — not required for local run)
 
 ## Step 3 — Data integration layer ✅ (all verified against live data.gov.sg)
@@ -104,7 +105,7 @@
 - [ ] Parameterize dataset ID / cache TTL via CDK context or SSM (not hardcoded)
 
 ## Step 8 — Documentation
-- [ ] `README.md`: setup (pnpm install, env files, `pnpm dev`), architecture diagram (Mermaid), API contract (`/api/records`, `/api/insights`), known limitations
+- [ ] `README.md`: setup (pnpm install, env files, `pnpm dev`), architecture diagram (Mermaid), API contract (`/api/filters`, `/api/records`), known limitations
 - [ ] `ADR.md`: backend proxy (no direct FE→gov API calls, security + caching), why caching, why Fargate over Lambda, why no secrets manager yet
 - [ ] Worked example in ADR: average-age-group calculation logic (business logic lives in backend `src/insights`, not FE)
 
