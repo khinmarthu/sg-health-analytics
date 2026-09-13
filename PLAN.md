@@ -31,6 +31,10 @@
 | 10 | Endpoints | Two only: `GET /api/filters`, `GET /api/records` (no separate `/api/insights` — folded into `/api/records`'s response) | `/api/records` response includes an `insights` field alongside `items`, since insights must reflect the full matching set regardless of page — computing it as part of the same request avoids a second round trip that would just redo the same filter step. |
 | 11 | Cache design | Three separate caches, one per concern | (a) **Dataset cache**: full raw dataset, fixed key, owned by `/api/filters` (computes unique field values) — also reused directly by `/api/records` to compute insights when *no* filter is selected (no-filter insights = full-dataset aggregation, already held here, no extra fetch). (b) **Records proxy cache** (`recordsCache.ts`, unchanged): keyed by exact query (`filters`+`limit`+`offset`), pushes filters to data.gov.sg's own `filters` param, serves `items`. (c) **Filtered-insights cache** (new): keyed by `filters` only (no pagination) — populated only when a filter is passed; fetches *all* matching rows (own internal pagination loop against data.gov.sg), computes insights once, caches the computed insight object (not the raw rows) under that key. |
 | 12 | Transient upstream errors | Basic retry in `fetchPage` (3 attempts, 300ms delay) | Observed one real transient failure from data.gov.sg during testing (succeeded on manual retry). Kept minimal — no backoff/jitter — since caching already means most requests never reach data.gov.sg live anyway; this only matters on a cache miss. |
+| 13 | `/api/records` filter query shape | One `filters` query param, a JSON string matching the exact shape data.gov.sg's own `filters` accepts (`{"clinical_status":"ICU","age_groups":[...]}`) — not our own separate-param-per-field convention | User's suggestion; simpler than inventing a translation layer since it's the same shape we'd already verified works upstream. Each field accepts one value or an array (OR-match). Validated server-side with zod (`.strict()`, known enums for `clinical_status`/`age_groups`, a `YYYY-WW` pattern for `epi_week`) — this is validating *our* API's input, a different boundary from trusting data.gov.sg's response. `RecordsFilters` type added to `packages/types` since both FE and BE construct/consume this exact shape. |
+| 14 | MUI table component | Plain `@mui/material` Table | Pagination/filtering logic already lives in backend + component state; `@mui/x-data-grid`'s built-in features would mostly go unused at this scale (312 rows) |
+| 15 | Filter selection state | Redux Toolkit slice (`filtersSlice.ts`), not local `useState` | Matches original plan; demonstrates Redux Toolkit slice usage alongside RTK Query (already in use for server state) |
+| 16 | Page layout | Full-height flex column (`html`/`body`/`#root` at 100%, page itself never scrolls) — title/filters/insight fixed at top, only the table's rows scroll internally, pagination always visible | User-requested UX: avoids needing to scroll the whole page to reach pagination controls |
 
 ---
 
@@ -71,13 +75,16 @@
 - [x] `.env` / `.env.example` for FE (`VITE_API_BASE_URL`) — only `VITE_`-prefixed vars reach client code, by Vite's own design
 - [ ] Folders `src/features/*`, `src/components/*` — not created yet, deferred to Step 5 when real components exist (no `features/insights` — insights is embedded in the records feature's response, not a separate concern)
 
-## Step 5 — State & UI
-- [ ] Filter state: multi-select checkboxes per field, values from `/api/filters`
-- [ ] Insight summary display, between filters and table, from `/api/records`'s embedded `insights` field
-- [ ] Table (paginated, page 1 / 100 per page by default) for `/api/records`'s `items`
-- [ ] Charts: deferred, not building for now
-- [ ] Loading/error/empty states via RTK Query hooks
-- [ ] MUI (`@mui/material`) for components — confirmed no compatibility issues with Vite/React/TS; specific table component (plain `Table` vs `@mui/x-data-grid`) to be decided when we build this step
+## Step 5 — State & UI ✅ (verified live via HMR)
+- [x] `features/filters/filtersSlice.ts` — Redux slice, arrays per field (empty = no filter), `selectRecordsFilters` builds the `RecordsFilters` object for the API call
+- [x] `components/FilterFieldSelect.tsx` — one reusable MUI `<Select multiple>` w/ checkboxes; `components/FilterBar.tsx` — one per filterable field (`clinical_status`, `age_groups`, `epi_week`), values from `/api/filters`, + a clear-filters button
+- [x] `components/InsightSummary.tsx` — renders `/api/records`'s embedded `insights`; fields the backend omits (see Step 3's `calculateInsights` note on the ICU:Hospitalised ratio) are simply not rendered, not shown as null/zero
+- [x] `components/RecordsTable.tsx` — paginated MUI `Table` (page 1 / 100 per page default), backend-driven pagination (offset/limit), sticky table header
+- [x] Charts: still deferred, not building
+- [x] Loading/error states via RTK Query hooks (`isLoading`, `error`)
+- [x] MUI: plain `@mui/material` Table (Decisions Log #14)
+- [x] Full-height layout: only table rows scroll, header + pagination always visible (Decisions Log #16) — `index.css` reset, `App.tsx`/`RecordsTable.tsx` flex layout
+- [x] `App.tsx` resets to page 1 whenever the filter selection changes
 
 ## Step 6 — Testing
 - [ ] Backend (Vitest + Supertest): `DataGovClient` unit tests (mocked HTTP), insights calculation tests (known input → expected output), route integration tests
