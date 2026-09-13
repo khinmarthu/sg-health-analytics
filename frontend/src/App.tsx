@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Alert, Box, Container, Stack, Typography } from "@mui/material";
-import { useGetRecordsQuery } from "./app/api.js";
-import { useAppSelector } from "./app/hooks.js";
-import { selectRecordsFilters } from "./features/filters/filtersSlice.js";
-import { FilterBar } from "./components/FilterBar.js";
+import { useGetRecordsQuery } from "./redux/api.js";
+import { useAppSelector } from "./redux/hooks.js";
+import { selectRecordsFilters } from "./redux/filtersSlice.js";
+import { FilterBar } from "./containers/FilterBar.js";
 import { InsightSummary } from "./components/InsightSummary.js";
 import { RecordsTable } from "./components/RecordsTable.js";
 

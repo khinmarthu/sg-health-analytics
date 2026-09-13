@@ -76,10 +76,13 @@
 - [ ] Folders `src/features/*`, `src/components/*` — not created yet, deferred to Step 5 when real components exist (no `features/insights` — insights is embedded in the records feature's response, not a separate concern)
 
 ## Step 5 — State & UI ✅ (verified live via HMR)
-- [x] `features/filters/filtersSlice.ts` — Redux slice, arrays per field (empty = no filter), `selectRecordsFilters` builds the `RecordsFilters` object for the API call
-- [x] `components/FilterFieldSelect.tsx` — one reusable MUI `<Select multiple>` w/ checkboxes; `components/FilterBar.tsx` — one per filterable field (`clinical_status`, `age_groups`, `epi_week`), values from `/api/filters`, + a clear-filters button
-- [x] `components/InsightSummary.tsx` — renders `/api/records`'s embedded `insights`; fields the backend omits (see Step 3's `calculateInsights` note on the ICU:Hospitalised ratio) are simply not rendered, not shown as null/zero
-- [x] `components/RecordsTable.tsx` — paginated MUI `Table` (page 1 / 100 per page default), backend-driven pagination (offset/limit), sticky table header
+- [x] Folder split (container/presentational convention):
+  - `redux/` — all Redux/RTK Query wiring: `store.ts`, `hooks.ts` (typed `useAppDispatch`/`useAppSelector`), `api.ts` (RTK Query), `filtersSlice.ts` (+ `selectRecordsFilters`, builds the `RecordsFilters` object for the API call)
+  - `containers/` — components wired to Redux/data-fetching: `FilterFieldSelect.tsx`, `FilterBar.tsx`
+  - `components/` — pure, props-only, no Redux/API calls: `InsightSummary.tsx`, `RecordsTable.tsx`
+- [x] `FilterFieldSelect.tsx` — one reusable MUI `<Select multiple>` w/ checkboxes; `FilterBar.tsx` — one per filterable field (`clinical_status`, `age_groups`, `epi_week`), values from `/api/filters`, + a clear-filters button
+- [x] `InsightSummary.tsx` — renders `/api/records`'s embedded `insights`; fields the backend omits (see Step 3's `calculateInsights` note on the ICU:Hospitalised ratio) are simply not rendered, not shown as null/zero
+- [x] `RecordsTable.tsx` — paginated MUI `Table` (page 1 / 100 per page default), backend-driven pagination (offset/limit), sticky table header
 - [x] Charts: still deferred, not building
 - [x] Loading/error states via RTK Query hooks (`isLoading`, `error`)
 - [x] MUI: plain `@mui/material` Table (Decisions Log #14)

@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { RecordsFilters } from "@sg-health/types";
-import type { RootState } from "../../app/store.js";
+import type { RootState } from "./store.js";
 
 // Stored as arrays always (even a single checked box), since checkboxes
 // are inherently multi-select. An empty array means "no filter on this field".

@@ -8,8 +8,8 @@ import {
   Select,
   type SelectChangeEvent,
 } from "@mui/material";
-import { useAppDispatch, useAppSelector } from "../app/hooks.js";
-import { setField, type FiltersState } from "../features/filters/filtersSlice.js";
+import { useAppDispatch, useAppSelector } from "../redux/hooks.js";
+import { setField, type FiltersState } from "../redux/filtersSlice.js";
 
 interface FilterFieldSelectProps {
   field: keyof FiltersState;

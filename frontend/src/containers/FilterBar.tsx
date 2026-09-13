@@ -1,7 +1,7 @@
 import { Alert, Button, Stack } from "@mui/material";
-import { useGetFiltersQuery } from "../app/api.js";
-import { useAppDispatch } from "../app/hooks.js";
-import { clearAll } from "../features/filters/filtersSlice.js";
+import { useGetFiltersQuery } from "../redux/api.js";
+import { useAppDispatch } from "../redux/hooks.js";
+import { clearAll } from "../redux/filtersSlice.js";
 import { FilterFieldSelect } from "./FilterFieldSelect.js";
 
 export function FilterBar() {
