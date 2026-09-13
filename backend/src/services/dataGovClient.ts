@@ -16,6 +16,10 @@ interface FetchPageParams {
   // exact-match only; an array value OR-matches within that field (verified
   // against the real API — see PLAN.md chat history), no ranges/comparisons.
   filters?: RecordsFilters;
+  // e.g. "count desc" — verified to work standalone and combined with
+  // filters (pushed server-side, not re-sorted client-side, since sort
+  // order affects which rows land on which page).
+  sort?: string;
 }
 
 const MAX_ATTEMPTS = 3;
@@ -28,13 +32,16 @@ function sleep(ms: number): Promise<void> {
 /** Fetches one page of raw records from data.gov.sg's datastore_search API.
  * Retries a couple of times on failure — we saw one transient error from
  * this API during testing, unrelated to our request itself. */
-export async function fetchPage({ limit, offset, filters }: FetchPageParams) {
+export async function fetchPage({ limit, offset, filters, sort }: FetchPageParams) {
   const url = new URL(env.dataGovBaseUrl);
   url.searchParams.set("resource_id", env.resourceId);
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("offset", String(offset));
   if (filters && Object.keys(filters).length > 0) {
     url.searchParams.set("filters", JSON.stringify(filters));
+  }
+  if (sort) {
+    url.searchParams.set("sort", sort);
   }
 
   let lastError: unknown;

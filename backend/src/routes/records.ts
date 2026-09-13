@@ -32,6 +32,10 @@ const filtersSchema = z
   })
   .strict();
 
+// Sortable fields — a subset of RawHealthRecord's keys, deliberately
+// excluding _id/epi_year (not meaningful to sort by in the UI).
+const sortableFields = ["epi_week", "clinical_status", "age_groups", "count"] as const;
+
 // Validates OUR API's own incoming query params (not the gov data response —
 // that's a separate boundary). A client could send anything, so this
 // rejects bad/out-of-range input with a clear 400 instead of it silently
@@ -40,6 +44,8 @@ const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(100),
   offset: z.coerce.number().int().min(0).default(0),
   filters: z.string().optional(), // JSON string, parsed+validated separately below
+  sort_by: z.enum(sortableFields).optional(),
+  sort_dir: z.enum(["asc", "desc"]).default("asc"),
 });
 
 recordsRouter.get("/api/records", async (req, res) => {
@@ -48,7 +54,8 @@ recordsRouter.get("/api/records", async (req, res) => {
     res.status(400).json({ success: false, error: { message: parsedQuery.error.message } });
     return;
   }
-  const { limit, offset, filters: filtersRaw } = parsedQuery.data;
+  const { limit, offset, filters: filtersRaw, sort_by, sort_dir } = parsedQuery.data;
+  const sort = sort_by ? `${sort_by} ${sort_dir}` : undefined; // data.gov.sg's own format, e.g. "count desc"
 
   let filters: RecordsFilters = {};
   if (filtersRaw) {
@@ -70,7 +77,7 @@ recordsRouter.get("/api/records", async (req, res) => {
   const hasFilters = Object.keys(filters).length > 0;
 
   try {
-    const { records, total } = await getCachedRecords({ limit, offset, filters });
+    const { records, total } = await getCachedRecords({ limit, offset, filters, sort });
 
     // insights always reflect every matching row, not just this page —
     // no filter: reuse the already-cached full dataset; filtered: use the

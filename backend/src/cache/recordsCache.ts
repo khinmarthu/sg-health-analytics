@@ -9,12 +9,13 @@ interface RecordsParams {
   limit: number;
   offset: number;
   filters?: RecordsFilters;
+  sort?: string;
 }
 
 /** Cache key: the exact query params, so identical requests hit cache
- * and different ones (different page, different filter) don't collide. */
-function cacheKey({ limit, offset, filters }: RecordsParams): string {
-  return JSON.stringify({ limit, offset, filters: filters ?? {} });
+ * and different ones (different page, filter, or sort) don't collide. */
+function cacheKey({ limit, offset, filters, sort }: RecordsParams): string {
+  return JSON.stringify({ limit, offset, filters: filters ?? {}, sort: sort ?? null });
 }
 
 export async function getCachedRecords(
